@@ -390,7 +390,25 @@ def main():
                 "Final Summary": False
             },
             "active_reviewers": ["deepseek-r1"]
-        }
+        },
+        "only_fact_check": {
+            "include_components": {
+                "Test": False,
+                "Reviewers": False,
+                "Grammar Check": False,
+                "Novelty Check": False,
+                "Final Summary": False
+            }
+        },
+        "only_novelty_check": {
+            "include_components": {
+                "Test": False,
+                "Reviewers": False,
+                "Grammar Check": False,
+                "Fact Check": False,
+                "Final Summary": False
+            }
+        },
     }
     
     if args.baseline_only:
