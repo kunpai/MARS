@@ -1,14 +1,14 @@
-Paper,baseline,higher_threshold,lower_threshold,reviewers_only,no_reviewers,test_and_summary_only,fact_and_novelty_only,grammar_only,include_questioner,different_scores,no_fallback,unweighted_avg,all_reviewers,no_mistral,only_mistral,only_llama3.2,only_qwen2.5,only_deepseek-r1,only_fact_check,only_novelty_check
-GuardHFL__GGLJ79pV.json,Reject,Reject,Accept,Reject,Accept,Accept,Accept,Accept,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Accept,Reject,Accept
-Corrupted_Image_09hVcSDkea.json,Accept,Reject,Accept,Accept,Accept,Accept,Reject,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Reject,Accept,Accept,Accept,Reject,Reject
-FedAvg_5sMa2sdU4.json,Reject,Reject,Reject,Reject,Accept,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Accept,Reject,Reject
-VariationalImbalancedRegression-ltZ1uw8ZE7.json,Reject,Reject,Accept,Reject,Accept,Accept,Reject,Accept,Reject,Reject,Reject,Reject,Reject,Reject,Accept,Reject,Reject,Reject,Reject,Reject
-EfficientTTS_2__czv_gqDQt.json,Reject,Reject,Accept,Reject,Accept,Accept,Accept,Accept,Reject,Reject,Accept,Reject,Reject,Reject,Accept,Reject,Reject,Accept,Reject,Accept
-Communication-Efficient-59_mb1lOf4.json,Reject,Reject,Accept,Reject,Accept,Accept,Reject,Accept,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Accept,Reject,Reject
-Exploring_perceptual_4cOfD2qL6T.json,Accept,Reject,Accept,Accept,Accept,Accept,Reject,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Reject,Accept,Accept,Accept,Reject,Reject
-StochasticNo-regretLearning_oJZ8bPtCar.json,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Reject,Reject,Accept
-AnamnesicNeuralDifferentialEquations_xYWqSjBcGMl.json,Accept,Reject,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Reject,Accept,Accept,Accept,Reject,Accept
-TwoLayerReLURisk_6doXHqwMayf.json,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Reject,Accept
+Paper,baseline,higher_threshold,lower_threshold,reviewers_only,no_reviewers,test_and_summary_only,fact_and_novelty_only,grammar_only,include_questioner,different_scores,no_fallback,unweighted_avg,all_reviewers,no_mistral,only_mistral,only_llama3.2,only_qwen2.5,only_deepseek-r1,only_fact_check,only_novelty_check,only_summary
+TwoLayerReLURisk_6doXHqwMayf.json,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Reject,Accept,Accept
+Communication-Efficient-59_mb1lOf4.json,Reject,Reject,Accept,Reject,Accept,Accept,Reject,Accept,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Accept,Reject,Reject,Accept
+Corrupted_Image_09hVcSDkea.json,Accept,Reject,Accept,Accept,Accept,Accept,Reject,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Reject,Accept,Accept,Accept,Reject,Reject,Accept
+FedAvg_5sMa2sdU4.json,Reject,Reject,Reject,Reject,Accept,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Accept,Reject,Reject,Reject
+StochasticNo-regretLearning_oJZ8bPtCar.json,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Reject,Reject,Accept,Accept
+AnamnesicNeuralDifferentialEquations_xYWqSjBcGMl.json,Accept,Reject,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Reject,Accept,Accept,Accept,Reject,Accept,Accept
+VariationalImbalancedRegression-ltZ1uw8ZE7.json,Reject,Reject,Accept,Reject,Accept,Accept,Reject,Accept,Reject,Reject,Reject,Reject,Reject,Reject,Accept,Reject,Reject,Reject,Reject,Reject,Accept
+GuardHFL__GGLJ79pV.json,Reject,Reject,Accept,Reject,Accept,Accept,Accept,Accept,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Reject,Accept,Reject,Accept,Accept
+EfficientTTS_2__czv_gqDQt.json,Reject,Reject,Accept,Reject,Accept,Accept,Accept,Accept,Reject,Reject,Accept,Reject,Reject,Reject,Accept,Reject,Reject,Accept,Reject,Accept,Accept
+Exploring_perceptual_4cOfD2qL6T.json,Accept,Reject,Accept,Accept,Accept,Accept,Reject,Accept,Accept,Accept,Accept,Accept,Accept,Accept,Reject,Accept,Accept,Accept,Reject,Reject,Accept
 
-Accept Count,5,2,9,5,10,9,5,9,5,5,6,5,5,5,4,5,5,8,0,5
-Accept %,50.0%,20.0%,90.0%,50.0%,100.0%,90.0%,50.0%,90.0%,50.0%,50.0%,60.0%,50.0%,50.0%,50.0%,40.0%,50.0%,50.0%,80.0%,0.0%,50.0%
+Accept Count,5,2,9,5,10,9,5,9,5,5,6,5,5,5,4,5,5,8,0,5,9
+Accept %,50.0%,20.0%,90.0%,50.0%,100.0%,90.0%,50.0%,90.0%,50.0%,50.0%,60.0%,50.0%,50.0%,50.0%,40.0%,50.0%,50.0%,80.0%,0.0%,50.0%,90.0%

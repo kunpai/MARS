@@ -409,6 +409,15 @@ def main():
                 "Final Summary": False
             }
         },
+        "only_summary": {
+            "include_components": {
+                "Test": False,
+                "Reviewers": False,
+                "Grammar Check": False,
+                "Novelty Check": False,
+                "Fact Check": False
+            }
+        }
     }
     
     if args.baseline_only:
