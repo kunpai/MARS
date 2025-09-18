@@ -1,14 +1,114 @@
-# MARS: Multi-Agent Review System for Academic Papers
+# MARS: Multi-Agent Review System for Academic Papers 🚀
 
-### Overview
-The MARS project is designed to automate the evaluation of research papers by leveraging multiple AI agents. These agents provide feedback on different sections of a research paper, including relevance, quality, grammar, and open-ended questions. The project utilizes the Ollama framework for model interactions and PyPDF2 for PDF processing.
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-### Features
-1. **Dynamic Section Feedback**: Provides detailed feedback for each section of a paper.
-2. **Multiple Review Agents**: Includes reviewers for grammar, relevance, and content quality.
-3. **Customizable Prompts**: Adapts prompts for different sections dynamically.
-4. **JSON Feedback Output**: Saves structured feedback in a JSON file for further use.
-5. **Integration with Ollama**: Uses AI models for natural language processing tasks.
+A modern, streamlined multi-agent system for comprehensive academic paper review using state-of-the-art AI models and NLP techniques.
+
+## ✨ Features
+
+- **🤖 Multi-Agent Review**: Leverages multiple AI models (Mistral, Llama, Qwen) for diverse perspectives
+- **📄 Smart PDF Processing**: Modern PDF extraction with pypdf for better text handling
+- **🎯 Section-wise Analysis**: Intelligent section detection and targeted review
+- **📊 Advanced Sentiment Analysis**: Modern NLP techniques for review aggregation
+- **💬 Interactive Q&A**: Automated question generation and answering
+- **🔍 Comprehensive Checks**: Grammar, novelty, fact-checking, and relevance assessment
+- **💾 Smart Checkpointing**: Resume interrupted processing seamlessly
+- **🎨 Rich CLI Interface**: Beautiful, user-friendly command-line experience
+- **📋 Modern Configuration**: Uses pyproject.toml and proper dependency management
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Python 3.10+** (required for modern type hints and features)
+- **Ollama** installed and running ([installation guide](https://ollama.ai))
+
+### Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/kunpai/MARS.git
+   cd MARS
+   ```
+
+2. **Run the automated setup**:
+   ```bash
+   ./setup.sh
+   ```
+   
+   This will:
+   - Create a virtual environment
+   - Install all dependencies
+   - Download required AI models
+   - Set up the development environment
+
+3. **Activate the environment**:
+   ```bash
+   source mars-env/bin/activate
+   ```
+
+### Basic Usage
+
+```bash
+# Review a PDF paper
+python MARS.py https://example.com/cfp paper.pdf
+
+# Review with Q&A enabled
+python MARS.py https://example.com/cfp paper.pdf --answer-questions
+
+# Review specific section
+python MARS.py https://example.com/cfp paper.pdf "Introduction"
+
+# Use the modern CLI
+python cli.py https://example.com/cfp paper.pdf --verbose
+```
+
+## 📁 Project Structure
+
+```
+MARS/
+├── MARS.py                 # Main review system (modernized)
+├── cli.py                  # Modern CLI interface
+├── setup.sh               # Automated setup script
+├── pyproject.toml          # Modern Python project configuration
+├── requirements.txt        # Core dependencies
+├── requirements-dev.txt    # Development dependencies
+├── util/                   # Utility modules
+│   ├── review_collab.py    # PDF processing & collaboration
+│   ├── build_models.py     # AI model management
+│   ├── multiagent.py       # Multi-agent coordination
+│   ├── reviewer.py         # Reviewer agent definitions
+│   ├── extract_cfp.py      # CFP topic extraction
+│   ├── scholar.py          # Academic paper search
+│   └── extract_keywords.py # Keyword extraction
+├── dataset_results/        # Sample results
+├── human_reviews/          # Human review comparisons
+└── results/               # Analysis scripts
+```
+
+## 🔧 Key Improvements
+
+### Modern Dependencies
+- **pypdf** → Replaced PyPDF2 for better PDF handling
+- **loguru** → Modern, structured logging
+- **rich** → Beautiful CLI output and progress bars
+- **pydantic** → Type-safe configuration management
+- **click** → Professional CLI framework
+
+### Code Quality
+- **Type hints** throughout the codebase
+- **Error handling** with proper exception management
+- **Logging** with structured, leveled output
+- **Progress tracking** with visual feedback
+- **Configuration** via pyproject.toml
+
+### User Experience
+- **Rich CLI** with colors, progress bars, and panels
+- **Smart setup** with automated dependency installation
+- **Better error messages** with helpful suggestions
+- **Resume capability** with checkpoint management
 
 ### Installation
 #### Prerequisites
