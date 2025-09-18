@@ -8,6 +8,7 @@ A modernized, streamlined system for automated academic paper review using multi
 
 ## 🚀 What's New in v2.0
 
+- **Dynamic Content-Aware Reviewers**: AI reviewers are now generated based on the specific paper content and research domain
 - **LangGraph Multi-Agent Discussions**: Replaced sequential reviews with collaborative agent discussions
 - **Modern Python**: Full type hints, pathlib, logging, and Python 3.9+ features
 - **Enhanced PDF Processing**: Improved text extraction with better error handling
@@ -18,13 +19,14 @@ A modernized, streamlined system for automated academic paper review using multi
 
 ## 📋 Features
 
-1. **🤖 Multi-Agent Discussion**: Three expert AI reviewers engage in collaborative discussions to reach consensus
+1. **🤖 Dynamic Multi-Agent Discussion**: AI reviewers generated based on paper content engage in collaborative discussions to reach consensus
 2. **📄 Smart PDF Processing**: Enhanced text extraction and section detection
 3. **🗣️ LangGraph Integration**: State-of-the-art conversational AI framework for agent coordination
-4. **🔍 Comprehensive Analysis**: Grammar, novelty, fact-checking, and quality assessment
-5. **💾 Checkpoint System**: Resume processing from interruptions
-6. **📊 Structured Output**: Well-formatted JSON results with detailed discussion transcripts
-7. **🔧 Modern Architecture**: Type-safe, well-logged, and maintainable code
+4. **🎯 Content-Aware Reviewers**: Reviewer profiles dynamically generated based on paper's research domain and methods
+5. **🔍 Comprehensive Analysis**: Grammar, novelty, fact-checking, and quality assessment
+6. **💾 Checkpoint System**: Resume processing from interruptions
+7. **📊 Structured Output**: Well-formatted JSON results with detailed discussion transcripts
+8. **🔧 Modern Architecture**: Type-safe, well-logged, and maintainable code
 
 ## 🛠️ Installation
 
@@ -113,11 +115,31 @@ The system generates structured feedback in `feedback_collab_with_answers.json`:
         "langgraph_discussion": "Collaborative review discussion summary...",
         "final_decision": "DECISION: Accept\nREASONING: Strong methodology, clear writing, novel approach\nSUGGESTIONS: Minor improvements to related work section\nCONSENSUS: Strong agreement among all reviewers",
         "individual_reviews": {
-          "Dr. Sarah Chen": "This paper presents a solid methodology...",
-          "Prof. Marcus Rivera": "I agree with Sarah's assessment...",
-          "Dr. Aisha Patel": "From a practical perspective..."
+          "Dr. Alex Chen": "This paper presents a solid methodology for neural network optimization...",
+          "Prof. Jordan Patel": "I agree with Alex's assessment of the technical rigor...",
+          "Dr. Casey Rivera": "From a computer vision perspective, the practical applications..."
         },
-        "consensus_reached": true
+        "consensus_reached": true,
+        "generated_reviewers": [
+          {
+            "name": "Dr. Alex Chen",
+            "expertise": "Neural Network Optimization",
+            "experience": "Senior Researcher",
+            "style": "thorough and methodical"
+          },
+          {
+            "name": "Prof. Jordan Patel", 
+            "expertise": "Deep Learning Applications",
+            "experience": "Associate Professor",
+            "style": "balanced and constructive"
+          },
+          {
+            "name": "Dr. Casey Rivera",
+            "expertise": "Computer Vision",
+            "experience": "Principal Scientist", 
+            "style": "practical and focused"
+          }
+        ]
       },
       "Grammar Check": "Accept - No significant issues",
       "Novelty Check": "Accept - Novel approach to...",

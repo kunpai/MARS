@@ -196,6 +196,13 @@ for section_name in sections_to_process:
             # Run the multi-agent discussion
             review_result = review_system.review_section(section_text, section_name)
             
+            # Display information about the generated reviewers
+            print(f"\n🤖 **Dynamically Generated Reviewers:**")
+            for reviewer in review_result.get('generated_reviewers', []):
+                print(f"  • {reviewer['name']} ({reviewer['experience']})")
+                print(f"    Expertise: {reviewer['expertise']}")
+                print(f"    Style: {reviewer['style']}")
+            
             # Display the discussion
             print(f"\n💬 **Discussion Summary:**")
             print(f"Rounds completed: {review_result['rounds_completed']}")
@@ -214,7 +221,8 @@ for section_name in sections_to_process:
                 "langgraph_discussion": review_result['discussion_summary'],
                 "final_decision": review_result['final_decision'],
                 "individual_reviews": review_result['individual_reviews'],
-                "consensus_reached": review_result['consensus_reached']
+                "consensus_reached": review_result['consensus_reached'],
+                "generated_reviewers": review_result.get('generated_reviewers', [])
             }
             
             # Use the final decision as the aggregated review
