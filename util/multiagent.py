@@ -1,16 +1,40 @@
+import logging
+from typing import List, Dict, Any, Optional, Tuple
 import ollama
-from ollama import chat
-from ollama import ChatResponse
+from ollama import chat, ChatResponse
 import requests
 import re
 from bs4 import BeautifulSoup
 
-def isModelLoaded(model):
-    loaded_models = [model.model for model in ollama.list().models]
-    return model in loaded_models or f"{model}:latest" in loaded_models
+# Configure logging
+logger = logging.getLogger(__name__)
 
-def consultWiki(question):
-    print(f"Searching Wikipedia for: {question}")
+def isModelLoaded(model: str) -> bool:
+    """Check if a model is loaded in Ollama.
+    
+    Args:
+        model: Model name to check
+        
+    Returns:
+        True if model is loaded, False otherwise
+    """
+    try:
+        loaded_models = [model.model for model in ollama.list().models]
+        return model in loaded_models or f"{model}:latest" in loaded_models
+    except Exception as e:
+        logger.error(f"Error checking if model {model} is loaded: {e}")
+        return False
+
+def consultWiki(question: str) -> str:
+    """Search Wikipedia for information and return summary.
+    
+    Args:
+        question: Search query for Wikipedia
+        
+    Returns:
+        Summary of Wikipedia article or error message
+    """
+    logger.info(f"Searching Wikipedia for: {question}")
     
     search_url = "https://en.wikipedia.org/w/api.php"
     search_params = {
@@ -21,65 +45,127 @@ def consultWiki(question):
         "srlimit": 1,
     }
 
-    response = requests.get(search_url, params=search_params)
-    if response.status_code == 200:
+    try:
+        response = requests.get(search_url, params=search_params, timeout=10)
+        response.raise_for_status()
+        
         data = response.json()
         search_results = data.get("query", {}).get("search", [])
 
         if search_results:
             top_result = search_results[0]["title"]
             page_url = f"https://en.wikipedia.org/wiki/{top_result.replace(' ', '_')}"
-            print(f"Fetching full content from: {page_url}")
+            logger.info(f"Fetching content from: {page_url}")
 
             # Fetch the full page HTML
             html_url = f"https://en.wikipedia.org/api/rest_v1/page/html/{top_result.replace(' ', '_')}"
-            html_response = requests.get(html_url)
+            html_response = requests.get(html_url, timeout=10)
+            html_response.raise_for_status()
 
-            if html_response.status_code == 200:
-                soup = BeautifulSoup(html_response.text, "html.parser")
+            soup = BeautifulSoup(html_response.text, "html.parser")
 
-                # Extract all paragraphs from the page
-                paragraphs = [p.get_text() for p in soup.find_all("p") if p.get_text()]
+            # Extract all paragraphs from the page
+            paragraphs = [p.get_text().strip() for p in soup.find_all("p") if p.get_text().strip()]
+            if paragraphs:
                 full_text = " ".join(paragraphs)
-
                 # Summarize (basic extractive approach)
                 summary = " ".join(full_text.split(". ")[:5])  # First 5 sentences
-
                 return f"**{top_result}**\n{summary}...\n[Read more]({page_url})"
+    
+    except requests.RequestException as e:
+        logger.error(f"Error fetching from Wikipedia: {e}")
+        return f"Error fetching from Wikipedia: {e}"
+    except Exception as e:
+        logger.error(f"Unexpected error in Wikipedia search: {e}")
+        return f"Unexpected error in Wikipedia search: {e}"
     
     return "No results found on Wikipedia. Try using simpler keywords."
     
-def consultAgent(agent, question):
-    # print("Consulting agent", agent, "with question", question)
+def consultAgent(agent: str, question: str) -> Optional[str]:
+    """Consult an AI agent with a question.
+    
+    Args:
+        agent: Name of the agent/model to consult
+        question: Question to ask the agent
+        
+    Returns:
+        Response from the agent or None if error
+    """
     if not isModelLoaded(agent):
-        print(f"Model {agent} not found")
-        return
-    response: ChatResponse = chat(model=agent, messages=[
-        {
-            'role': 'user',
-            'content': question,
-        },
-    ])
-    return response.message.content
+        logger.error(f"Model {agent} not found")
+        return None
+        
+    try:
+        response: ChatResponse = chat(model=agent, messages=[
+            {
+                'role': 'user',
+                'content': question,
+            },
+        ])
+        return response.message.content
+    except Exception as e:
+        logger.error(f"Error consulting agent {agent}: {e}")
+        return None
 
-def consultDeskReviewer(abstract):
+def consultDeskReviewer(abstract: str) -> Tuple[bool, str]:
+    """Consult desk reviewer for paper acceptance decision.
+    
+    Args:
+        abstract: Paper abstract to review
+        
+    Returns:
+        Tuple of (accept_decision, review_text)
+    """
     desk_review = consultAgent('deskreviewer', abstract)
-    print(desk_review)
+    if desk_review is None:
+        return False, "Error: Could not get desk review"
+        
+    logger.info(f"Desk review: {desk_review}")
     return 'accept' in desk_review.lower(), desk_review
 
-def consultReviewer1(abstract):
+def consultReviewer1(abstract: str) -> str:
+    """Consult reviewer 1 for paper review.
+    
+    Args:
+        abstract: Paper abstract to review
+        
+    Returns:
+        Review decision (first word of response)
+    """
     review = consultAgent('reviewer1', abstract)
-    print(review)
+    if review is None:
+        return "Error"
+    logger.info(f"Reviewer 1: {review}")
     return review.split(' ')[0]
 
-def consultReviewer2(abstract):
+def consultReviewer2(abstract: str) -> str:
+    """Consult reviewer 2 for paper review.
+    
+    Args:
+        abstract: Paper abstract to review
+        
+    Returns:
+        Review decision (first word of response)
+    """
     review = consultAgent('reviewer2', abstract)
-    print(review)
+    if review is None:
+        return "Error"
+    logger.info(f"Reviewer 2: {review}")
     return review.split(' ')[0]
 
-def consultReviewer3(abstract):
+def consultReviewer3(abstract: str) -> str:
+    """Consult reviewer 3 for paper review.
+    
+    Args:
+        abstract: Paper abstract to review
+        
+    Returns:
+        Review decision (first word of response)
+    """
     review = consultAgent('reviewer3', abstract)
-    print(review)
+    if review is None:
+        return "Error"
+    logger.info(f"Reviewer 3: {review}")
     return review.split(' ')[0]
 
 def consultPaperSpecificModels(model, question):
@@ -152,7 +238,13 @@ def consultFactChecker(text):
         response = chat(model='factchecker', messages=[{'role': 'user', 'content': "Do you accept the claims? Say 'Accept' if yes and 'Reject' if no. \n " + query}])
         return response.message.content
 
-available_models = [model.model for model in ollama.list().models]
+# Initialize available models safely
+try:
+    available_models = [model.model for model in ollama.list().models]
+    logger.info(f"Loaded {len(available_models)} available models")
+except Exception as e:
+    logger.warning(f"Could not load available models (Ollama may not be running): {e}")
+    available_models = []
 
 available_functions = {
     'consultWiki': consultWiki,

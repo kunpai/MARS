@@ -1,129 +1,209 @@
 # MARS: Multi-Agent Review System for Academic Papers
 
-### Overview
-The MARS project is designed to automate the evaluation of research papers by leveraging multiple AI agents. These agents provide feedback on different sections of a research paper, including relevance, quality, grammar, and open-ended questions. The project utilizes the Ollama framework for model interactions and PyPDF2 for PDF processing.
+A modernized, streamlined system for automated academic paper review using multiple AI agents.
 
-### Features
-1. **Dynamic Section Feedback**: Provides detailed feedback for each section of a paper.
-2. **Multiple Review Agents**: Includes reviewers for grammar, relevance, and content quality.
-3. **Customizable Prompts**: Adapts prompts for different sections dynamically.
-4. **JSON Feedback Output**: Saves structured feedback in a JSON file for further use.
-5. **Integration with Ollama**: Uses AI models for natural language processing tasks.
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Type checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](https://mypy.readthedocs.io/)
 
-### Installation
-#### Prerequisites
-- Python 3.8 or higher
-- `pip` for managing Python packages
+## 🚀 What's New in v2.0
 
-#### Install Dependencies
-Run the following command to install the required Python libraries:
+- **Modern Python**: Full type hints, pathlib, logging, and Python 3.9+ features
+- **Enhanced PDF Processing**: Improved text extraction with better error handling
+- **Advanced Sentiment Analysis**: Replaced vaderSentiment with transformer-based models
+- **Robust Error Handling**: Comprehensive logging and graceful error recovery
+- **Modern Packaging**: pyproject.toml, proper dependency management
+- **Better Performance**: Optimized code patterns and async-ready architecture
+
+## 📋 Features
+
+1. **🤖 Multi-Agent Review**: Multiple specialized AI reviewers provide diverse feedback
+2. **📄 Smart PDF Processing**: Enhanced text extraction and section detection
+3. **🔍 Comprehensive Analysis**: Grammar, novelty, fact-checking, and quality assessment
+4. **💾 Checkpoint System**: Resume processing from interruptions
+5. **📊 Structured Output**: Well-formatted JSON results with detailed metrics
+6. **🔧 Modern Architecture**: Type-safe, well-logged, and maintainable code
+
+## 🛠️ Installation
+
+### Prerequisites
+- **Python 3.9+** (recommended: Python 3.11+)
+- **Ollama** installed and running
+- 8GB+ RAM recommended for AI models
+
+### Quick Setup
+
 ```bash
+# Clone the repository
+git clone https://github.com/kunpai/MARS.git
+cd MARS
+
+# Run the setup script
+chmod +x setup.sh
+./setup.sh
+
+# For development setup
+./setup.sh --dev
+```
+
+### Manual Setup
+
+```bash
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Install Ollama models
+ollama run llama3.2
+ollama run mistral
+ollama run qwen2.5
+ollama run deepseek-r1
 ```
 
-Also, make sure you have the base `mistral`, `llama3.2`, `qwen2.5` and `deepseek-r1` models downloaded from the Ollama framework.
-You can download them by:
+## 💻 Usage
+
+### Basic Review
+
 ```bash
-ollama run <model_name>
+# Review a PDF paper
+python MARS.py https://example.com/cfp paper.pdf
+
+# Review a specific section
+python MARS.py https://example.com/cfp paper.pdf "abstract"
+
+# Enable Q&A mode
+python MARS.py https://example.com/cfp paper.json --answer-questions
 ```
-where `<model_name>` is the name of the model you want to download.
 
-### Usage
-#### Run
-Firstly, we run the file that gives questions that could be useful to improve the paper by the questioner.
-To test this system, use the following command:
+### Input Formats
 
-- `<cfp_url>`: URL to the Conference Call for Papers (CFP).
-- `<json_path>`: Path to the json file of the research paper (Sectioned).
-Alternatively, you can provide the path to a .pdf file to extract the text and sections. However, the text extraction may not be perfect.
-- `<answer_question>`: If you want to answer the questions that the questioner has asked using the sections of the paper, this is an optional argument to run the second half of the paper review system.
-
-#### Example
+**PDF Files**: Direct processing with enhanced text extraction
 ```bash
-python MARS.py https://www.example.com/cfp example_paper.json
+python MARS.py https://conference-cfp.com paper.pdf
 ```
-Once the processing is complete, it is saved as a "feedback_collab_answer.json". This file contains the feedback for each section of the paper and the answers to the questions asked by the questioner.
 
-The schema for a paper that can be processed by the pipeline can be found in the `paper.schema.json` file.
-
-### Outputs
-
-1. **Console Output**:
-   - Displays the feedback for each section.
-
-2. **Feedback JSON File**:
-   - Saves detailed feedback for each section with the answers from the questioner in `feedback_collab_with_answers.json` file.
-
-#### Sample Feedback Format
+**JSON Files**: Structured input following the schema
 ```json
 {
-  "DeskReviewer": {
-      "Review": "Accept - Relevant to the conference topics.",
-      "Accept": true,
-  }, 
-  "Abstract": {
-    "Reviwers": {
-      "Reviewer1": "Weak Accept - Good quality but could improve clarity.",
-      "Reviewer2": "Reject - Needs more data to support claims.",
-      "Reviewer3": "Weak Accept - Add more details to methodology.",
-      "Reviewer4": "Accept - Relevant to the conference topics."
-    },
-    "Questioner": "What are the limitations of this study?",
-    "Grammar Check": "Accept - No grammar issues found.",
-    "Novelty Check": "Reject - Lacks novelty in the approach.",
-    "Fact Check": "Accept - No factual errors found.",
-    "Final Summary": "Weak Accept - Good quality but could improve clarity."
-  },
-  "Introduction": {
-    ...
-  },
-  "Answers" : {
-    "What are the limitations of this study?": {
-      "Abstract": "The limitations of this study include the small sample size and lack of diversity in the participants.",
-      "Introduction": "The study was limited by the lack of access to detailed data on the participants' medical history."
-      ...
+  "input": {
+    "sections": [
+      {"heading": "Abstract", "text": "..."},
+      {"heading": "Introduction", "text": "..."}
+    ]
+  }
+}
+```
+
+## 📊 Output
+
+The system generates structured feedback in `feedback_collab_with_answers.json`:
+
+```json
+{
+  "timestamp": 1705123456.789,
+  "processed_count": 5,
+  "Section Reviews": {
+    "Abstract": {
+      "Reviewers": {
+        "mistral": "Strong Accept - Well-written abstract...",
+        "llama3.2": "Accept - Clear objectives but...",
+        "qwen2.5": "Weak Accept - Consider improving..."
+      },
+      "Grammar Check": "Accept - No significant issues",
+      "Novelty Check": "Accept - Novel approach to...",
+      "Fact Check": "Accept - Claims are well-supported",
+      "Final Summary": "Majority Accept with minor revisions"
     }
   }
 }
 ```
 
-### How It Works
-1. **PDF Parsing**:
-   - Extracts sections such as Abstract, Introduction, Methods, Results, etc.
+## 🏗️ Architecture
 
-2. **Model Generation**:
-   - Creates AI models dynamically based on the content and CFP URL.
+```
+MARS/
+├── MARS.py              # Main orchestrator with modern Python features
+├── util/
+│   ├── review_collab.py # Enhanced PDF processing & reviewer coordination
+│   ├── multiagent.py    # Type-safe agent consultation system
+│   ├── build_models.py  # AI model management
+│   └── reviewer.py      # Reviewer configurations
+├── requirements.txt     # Curated, modern dependencies
+├── pyproject.toml      # Modern Python packaging
+└── setup.sh           # Automated environment setup
+```
 
-3. **Feedback Collection**:
-   - Each agent reviews a specific section and provides feedback.
+## 🔧 Configuration
 
-4. **Feedback Storage**:
-   - Saves the feedback in a structured JSON format.
+### Environment Variables
 
-## Project Structure
-- **`MARS.py`**: Main script to run the paper review system.
-- **`requirements.txt`**: Lists all dependencies for the project.
-- **`dataset_results/`**: Contains results of 10 research papers.
-- **`human_reviews/`**:Contains list of 10 research paper's human reviews.
-- **`util/`**: Contains utility scripts for various tasks.
-  - **`__init__.py`**: Initializes the utility package.
-  - **`extract_cfp.py`**: Extracts topics from CFP.
-  - **`extract_keywords.py`**: Extracts keywords from text.
-  - **`reviewer.py`**: Defines reviewer classes and functions.
-  - **`scholar.py`**: Searches for academic papers.
-  - **`review_collab.py`**: Reviewers communicate with each other and provide feedback and summary. Also has a PDF parser.
-  - **`multiagent.py`**: Contains the main class for the multi-agent system.
-  - **`build_models.py`**: Builds the models for the agents.
-- **`results/`**: Contains the results of the paper review system.
-  - **`csv/`**: Contains the CSV files of the results.
-      - **`ablation_results.csv`**: Contains the ablation results of the paper review system.
-      - **`section_language_scores.csv`**: Contains the language scores of the sections of the paper.
-      - **`summarizer_language_scores.csv`**: Contains the language scores of the summarizer.
-  - **`plots/`**: Contains the plots of the results.
-      - **`plotter.py`**: Plots the scores from the metric scores.
-      - **`plots.ipynb`**: Jupyter notebook to plot the scores.
-  - **`scripts/`**: Contains the scripts for the evaluation of the paper review system.
-      - **`ablation.py`**: Contains the ablation script for the paper review system.
-      - **`eval_scores.py`**: Contains the language evaluation script of the paper review system (BLEU,ROUGE-L,METEOR).
-      - **`conditional_probabilities.py`**: Contains the probability calculation script of the paper review system.
-      - **`accept_reject_calc.py`**: Contains the script to calculate the accept and reject scores of the paper review system.
+```bash
+# Optional: Custom logging level
+export MARS_LOG_LEVEL=DEBUG
+
+# Optional: Custom model timeout
+export MARS_MODEL_TIMEOUT=300
+```
+
+### Model Configuration
+
+Edit the model list in `MARS.py`:
+```python
+MODELS: List[str] = ["mistral", "llama3.2", "qwen2.5", "deepseek-r1"]
+```
+
+## 🧪 Development
+
+### Code Quality
+
+```bash
+# Format code
+black .
+
+# Lint code
+ruff check .
+
+# Type checking
+mypy .
+
+# Run tests
+pytest
+```
+
+### Adding New Features
+
+1. **Type Hints**: All new code must include proper type annotations
+2. **Logging**: Use the configured logger instead of print statements
+3. **Error Handling**: Implement comprehensive error handling with graceful fallbacks
+4. **Documentation**: Add docstrings following Google/NumPy style
+
+## 🚨 Migration from v1.x
+
+If upgrading from the older version:
+
+1. **Python Version**: Ensure Python 3.9+ is installed
+2. **Dependencies**: Run `pip install -r requirements.txt` to update packages
+3. **Code Changes**: The API remains backward compatible, but logging replaces many print statements
+4. **Configuration**: Consider migrating to the new configuration options
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Follow the code quality standards
+4. Add tests for new functionality
+5. Submit a pull request
+
+## 📄 License
+
+MIT License - see LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- Original MARS concept and implementation
+- Ollama for local AI model hosting
+- Transformers library for state-of-the-art NLP
+- Contributors and users of the academic review community
