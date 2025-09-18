@@ -17,6 +17,10 @@ huggingface-hub==0.28.1
 
 # AI/LLM Integration
 ollama==0.4.7
+langchain==0.3.7
+langchain-community==0.3.5
+langchain-core==0.3.15
+langgraph==0.2.34
 
 # Data processing and analysis
 pandas==2.2.3

@@ -13,7 +13,7 @@ from ollama import chat, ChatResponse
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 from util.review_collab import (
     parse_pdf_to_text, clean_text, extract_section,
-    split_text_into_sections, reviewer_agent, summarizer
+    split_text_into_sections, summarizer
 )
 from util.build_models import generate_base_models, generate_paper_models
 from util.multiagent import (
@@ -26,6 +26,7 @@ from util.multiagent import (
 )
 from util.reviewer import assigned_reviewers
 from util.build_models import isModelLoaded
+from util.langgraph_agents import create_review_system
 
 # Configure logging
 logging.basicConfig(
@@ -162,96 +163,110 @@ def checkpoint_progress() -> None:
 # Generate paper-specific models
 paper_specific_models = generate_paper_models(sections)
 
+# Initialize the LangGraph-based review system
+print("\n🤖 Initializing LangGraph Multi-Agent Review System...")
+try:
+    review_system = create_review_system(model_name="llama3.2")
+    logging.info("LangGraph review system initialized successfully")
+except Exception as e:
+    logging.error(f"Failed to initialize LangGraph review system: {e}")
+    print(f"❌ Error: {e}")
+    print("Falling back to basic review mode...")
+    review_system = None
+
 start_time = time.time()
 for section_name in sections_to_process:
-    print(f"\n\nProcessing section: {section_name}")
+    print(f"\n\n{'='*60}")
+    print(f"🔍 Processing section: {section_name}")
+    print(f"{'='*60}")
     
     section_text = extract_section(args.pdf_path, section_name) if args.pdf_path.endswith(".pdf") else next(s[1] for s in sections if s[0] == section_name)
     
-    print("\n🔍 **Extracted Section:**")
-    print(section_text[:1000])
+    print("\n📄 **Extracted Section Preview:**")
+    print(section_text[:500] + "..." if len(section_text) > 500 else section_text)
 
     similar_paper_data = generate_base_models(args.url, section_text)
    
-    print(f"\n📢 **Reviewers Begin Discussion for {section_name}:**\n")
-    review_outputs = {model: reviewer_agent(assigned_reviewers[0], section_text, model) for model in MODELS}
-
-def modern_aggregate_reviews(review_list: List[str]) -> str:
-    """Aggregate reviews using modern transformer-based sentiment analysis and summarization.
-    
-    Args:
-        review_list: List of review texts to aggregate
+    # Use LangGraph multi-agent discussion if available
+    if review_system:
+        print(f"\n🗣️ **Multi-Agent Discussion for {section_name}:**")
+        print("Three expert reviewers will now discuss this section to reach consensus...")
         
-    Returns:
-        Aggregated and summarized review text
-    """
-    if not review_list:
-        logging.warning("Empty review list provided for aggregation")
-        return "No reviews to aggregate"
-        
-    try:
-        # Use modern sentiment analysis from transformers
-        sentiment_pipeline = pipeline(
-            "sentiment-analysis", 
-            model="cardiffnlp/twitter-roberta-base-sentiment-latest",
-            return_all_scores=True
-        )
-        
-        # Analyze sentiment for each review
-        sentiments = []
-        for review in review_list:
-            # Truncate review if too long for the model
-            truncated_review = review[:512] if len(review) > 512 else review
-            try:
-                sentiment_scores = sentiment_pipeline(truncated_review)
-                # Get confidence score (sum of all scores)
-                confidence = sum(score['score'] for score in sentiment_scores[0])
-                sentiments.append(confidence)
-            except Exception as e:
-                logging.warning(f"Error analyzing sentiment for review: {e}")
-                sentiments.append(0.5)  # Default neutral score
-        
-        # Calculate weights based on sentiment confidence
-        total_confidence = sum(sentiments) + 1e-6
-        normalized_weights = [s / total_confidence for s in sentiments]
-        
-        # Create weighted combination of reviews
-        weighted_reviews = []
-        for review, weight in zip(review_list, normalized_weights):
-            # Repeat review content based on weight (capped at 3 repetitions)
-            repetitions = max(1, min(3, int(weight * 10)))
-            weighted_reviews.extend([review] * repetitions)
-        
-        combined_text = " ".join(weighted_reviews)
-        
-        # Use summarization with better error handling
         try:
-            summarizer_model = pipeline(
-                "summarization", 
-                model="facebook/bart-large-cnn",
-                max_length=150,
-                min_length=40,
-                do_sample=False
-            )
+            # Run the multi-agent discussion
+            review_result = review_system.review_section(section_text, section_name)
             
-            # Truncate if text is too long
-            if len(combined_text) > 1024:
-                combined_text = combined_text[:1024]
-                
-            summary = summarizer_model(combined_text)
-            return summary[0]['summary_text']
+            # Display the discussion
+            print(f"\n💬 **Discussion Summary:**")
+            print(f"Rounds completed: {review_result['rounds_completed']}")
+            print(f"Consensus reached: {review_result['consensus_reached']}")
+            
+            print(f"\n📋 **Individual Reviewer Contributions:**")
+            for reviewer_name, review_content in review_result['individual_reviews'].items():
+                print(f"\n{reviewer_name}:")
+                print(f"  {review_content[:200]}...")
+            
+            print(f"\n🎯 **Final Decision:**")
+            print(review_result['final_decision'])
+            
+            # Structure the output for compatibility
+            review_outputs = {
+                "langgraph_discussion": review_result['discussion_summary'],
+                "final_decision": review_result['final_decision'],
+                "individual_reviews": review_result['individual_reviews'],
+                "consensus_reached": review_result['consensus_reached']
+            }
+            
+            # Use the final decision as the aggregated review
+            aggregated_review = review_result['final_decision']
             
         except Exception as e:
-            logging.error(f"Error in summarization: {e}")
-            # Fallback to simple truncation
-            return combined_text[:300] + "..." if len(combined_text) > 300 else combined_text
+            logging.error(f"Error in LangGraph review: {e}")
+            print(f"❌ Error in multi-agent discussion: {e}")
+            print("📝 Falling back to individual model reviews...")
             
-    except Exception as e:
-        logging.error(f"Error in modern review aggregation: {e}")
-        # Fallback to simple concatenation
-        return " ".join(review_list[:3])  # Take first 3 reviews as fallback
+            # Fallback to original approach
+            review_outputs = {}
+            for model in MODELS:
+                if isModelLoaded(model):
+                    try:
+                        response = ollama.chat(
+                            model=model, 
+                            messages=[{
+                                "role": "user", 
+                                "content": f"Review this paper section and provide Accept/Reject decision with reasoning:\n\n{section_text[:1000]}"
+                            }]
+                        )
+                        review_outputs[model] = response['message']['content']
+                    except Exception as model_error:
+                        logging.error(f"Error with model {model}: {model_error}")
+                        review_outputs[model] = f"Error: Could not get review from {model}"
+            
+            aggregated_review = "Multiple individual reviews completed due to discussion system error."
+    
+    else:
+        # Fallback to original sequential approach if LangGraph failed to initialize
+        print(f"\n📝 **Individual Model Reviews for {section_name}:**")
+        review_outputs = {}
+        for model in MODELS:
+            if isModelLoaded(model):
+                try:
+                    response = ollama.chat(
+                        model=model, 
+                        messages=[{
+                            "role": "user", 
+                            "content": f"Review this paper section and provide Accept/Reject decision with reasoning:\n\n{section_text[:1000]}"
+                        }]
+                    )
+                    review_outputs[model] = response['message']['content']
+                    print(f"\n{model}: {response['message']['content'][:200]}...")
+                except Exception as model_error:
+                    logging.error(f"Error with model {model}: {model_error}")
+                    review_outputs[model] = f"Error: Could not get review from {model}"
+        
+        aggregated_review = "Individual model reviews completed."
 
-    aggregated_review = modern_aggregate_reviews(list(review_outputs.values()))
+    # Generate final summary using the aggregated review
     final_summary = summarizer(section_text, aggregated_review)
 
     if "DeskReviewer" not in all_section_reviews:
@@ -260,7 +275,7 @@ def modern_aggregate_reviews(review_list: List[str]) -> str:
 
     all_section_reviews[section_name] = {
         "Test": consult_test(section_text),
-        "Reviewers": review_outputs,
+        "Multi-Agent Discussion": review_outputs,  # Updated to reflect new approach
         "Grammar Check": consult_grammar(section_text),
         "Novelty Check": consult_novelty(section_text),
         "Fact Check": fact_checker(section_text),

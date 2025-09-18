@@ -8,6 +8,7 @@ A modernized, streamlined system for automated academic paper review using multi
 
 ## 🚀 What's New in v2.0
 
+- **LangGraph Multi-Agent Discussions**: Replaced sequential reviews with collaborative agent discussions
 - **Modern Python**: Full type hints, pathlib, logging, and Python 3.9+ features
 - **Enhanced PDF Processing**: Improved text extraction with better error handling
 - **Advanced Sentiment Analysis**: Replaced vaderSentiment with transformer-based models
@@ -17,12 +18,13 @@ A modernized, streamlined system for automated academic paper review using multi
 
 ## 📋 Features
 
-1. **🤖 Multi-Agent Review**: Multiple specialized AI reviewers provide diverse feedback
+1. **🤖 Multi-Agent Discussion**: Three expert AI reviewers engage in collaborative discussions to reach consensus
 2. **📄 Smart PDF Processing**: Enhanced text extraction and section detection
-3. **🔍 Comprehensive Analysis**: Grammar, novelty, fact-checking, and quality assessment
-4. **💾 Checkpoint System**: Resume processing from interruptions
-5. **📊 Structured Output**: Well-formatted JSON results with detailed metrics
-6. **🔧 Modern Architecture**: Type-safe, well-logged, and maintainable code
+3. **🗣️ LangGraph Integration**: State-of-the-art conversational AI framework for agent coordination
+4. **🔍 Comprehensive Analysis**: Grammar, novelty, fact-checking, and quality assessment
+5. **💾 Checkpoint System**: Resume processing from interruptions
+6. **📊 Structured Output**: Well-formatted JSON results with detailed discussion transcripts
+7. **🔧 Modern Architecture**: Type-safe, well-logged, and maintainable code
 
 ## 🛠️ Installation
 
@@ -107,15 +109,20 @@ The system generates structured feedback in `feedback_collab_with_answers.json`:
   "processed_count": 5,
   "Section Reviews": {
     "Abstract": {
-      "Reviewers": {
-        "mistral": "Strong Accept - Well-written abstract...",
-        "llama3.2": "Accept - Clear objectives but...",
-        "qwen2.5": "Weak Accept - Consider improving..."
+      "Multi-Agent Discussion": {
+        "langgraph_discussion": "Collaborative review discussion summary...",
+        "final_decision": "DECISION: Accept\nREASONING: Strong methodology, clear writing, novel approach\nSUGGESTIONS: Minor improvements to related work section\nCONSENSUS: Strong agreement among all reviewers",
+        "individual_reviews": {
+          "Dr. Sarah Chen": "This paper presents a solid methodology...",
+          "Prof. Marcus Rivera": "I agree with Sarah's assessment...",
+          "Dr. Aisha Patel": "From a practical perspective..."
+        },
+        "consensus_reached": true
       },
       "Grammar Check": "Accept - No significant issues",
       "Novelty Check": "Accept - Novel approach to...",
       "Fact Check": "Accept - Claims are well-supported",
-      "Final Summary": "Majority Accept with minor revisions"
+      "Final Summary": "Collaborative consensus: Accept with minor revisions"
     }
   }
 }
@@ -125,15 +132,16 @@ The system generates structured feedback in `feedback_collab_with_answers.json`:
 
 ```
 MARS/
-├── MARS.py              # Main orchestrator with modern Python features
+├── MARS.py                    # Main orchestrator with LangGraph integration
 ├── util/
-│   ├── review_collab.py # Enhanced PDF processing & reviewer coordination
-│   ├── multiagent.py    # Type-safe agent consultation system
-│   ├── build_models.py  # AI model management
-│   └── reviewer.py      # Reviewer configurations
-├── requirements.txt     # Curated, modern dependencies
-├── pyproject.toml      # Modern Python packaging
-└── setup.sh           # Automated environment setup
+│   ├── langgraph_agents.py   # Multi-agent discussion system using LangGraph
+│   ├── review_collab.py      # Enhanced PDF processing & coordination
+│   ├── multiagent.py         # Legacy agent consultation system
+│   ├── build_models.py       # AI model management
+│   └── reviewer.py           # Reviewer configurations
+├── requirements.txt          # Curated, modern dependencies including LangChain
+├── pyproject.toml           # Modern Python packaging
+└── setup.sh                # Automated environment setup
 ```
 
 ## 🔧 Configuration
