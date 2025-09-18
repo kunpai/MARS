@@ -215,8 +215,20 @@ def generate_fallback_profiles(domain: str) -> List[Dict[str, str]]:
         expertise_areas = [domain, f"{domain} Applications", f"Computational {domain}"]
     
     profiles = []
+    used_names = set()
+    
     for i in range(3):
-        name = f"{random.choice(first_names)} {random.choice(last_names)}"
+        # Generate unique names
+        max_attempts = 10
+        for attempt in range(max_attempts):
+            name = f"{random.choice(first_names)} {random.choice(last_names)}"
+            if name not in used_names:
+                used_names.add(name)
+                break
+        else:
+            # Fallback if all combinations are somehow used
+            name = f"{first_names[i % len(first_names)]} {last_names[i % len(last_names)]}"
+        
         profiles.append({
             "name": name,
             "experience_level": experience_levels[i % len(experience_levels)],
@@ -287,8 +299,12 @@ class LangGraphReviewSystem:
         # Define the flow
         graph.set_entry_point("facilitator")
         
-        # From facilitator, go to first reviewer
-        graph.add_edge("facilitator", reviewer_profiles[0].name)
+        # From facilitator, go to first reviewer (dynamically determined)
+        graph.add_conditional_edges(
+            "facilitator",
+            self._route_from_facilitator,
+            {profile.name: profile.name for profile in reviewer_profiles}
+        )
         
         # Chain reviewers in discussion rounds
         for i in range(len(reviewer_profiles)):
@@ -298,7 +314,7 @@ class LangGraphReviewSystem:
             # Each reviewer can go to next reviewer or consensus checker
             graph.add_conditional_edges(
                 current_reviewer,
-                lambda state: self._should_continue_discussion(state, reviewer_profiles),
+                self._should_continue_discussion,
                 {
                     "continue": next_reviewer,
                     "check_consensus": "consensus_checker"
@@ -308,10 +324,10 @@ class LangGraphReviewSystem:
         # From consensus checker, either continue discussion or make final decision
         graph.add_conditional_edges(
             "consensus_checker",
-            self._consensus_reached,
+            self._consensus_reached_with_routing,
             {
                 "consensus": "final_decision",
-                "continue": reviewer_profiles[0].name
+                "continue_discussion": "facilitator"  # Will route to first reviewer through facilitator
             }
         )
         
@@ -390,12 +406,26 @@ class LangGraphReviewSystem:
         
         return reviewer_node
     
+    def _route_from_facilitator(self, state: ReviewState) -> str:
+        """Route from facilitator to the first reviewer"""
+        reviewer_profiles = state.get('reviewer_profiles', [])
+        if reviewer_profiles:
+            return reviewer_profiles[0].name
+        else:
+            logger.error("No reviewer profiles available for routing")
+            return "final_decision"  # Fallback
+    
     def _facilitator_node(self, state: ReviewState) -> ReviewState:
         """Facilitator node to manage the discussion"""
         if state['round_number'] == 0:
             intro_message = f"Starting review discussion for section: {state['section_name']}"
             state['messages'].append(f"Facilitator: {intro_message}")
             logger.info(f"Starting review discussion for {state['section_name']}")
+        else:
+            # Continuing discussion after consensus check
+            continuation_message = f"Continuing discussion - Round {state['round_number'] + 1}"
+            state['messages'].append(f"Facilitator: {continuation_message}")
+            logger.info(f"Continuing discussion for round {state['round_number'] + 1}")
         
         state['round_number'] += 1
         return state
@@ -504,12 +534,17 @@ class LangGraphReviewSystem:
             state['final_decision'] = f"Error generating final decision: {e}"
             return state
     
-    def _should_continue_discussion(self, state: ReviewState, reviewer_profiles: List[ReviewerProfile]) -> str:
+    def _should_continue_discussion(self, state: ReviewState) -> str:
         """Decide whether to continue discussion or check consensus"""
         
         # Simple logic: after each reviewer in a round, check consensus
         # Max 3 rounds to prevent infinite loops
         if state['round_number'] >= 3:
+            return "check_consensus"
+        
+        # Get reviewer profiles from state
+        reviewer_profiles = state.get('reviewer_profiles', [])
+        if not reviewer_profiles:
             return "check_consensus"
         
         # Check if current speaker is the last reviewer in the round
@@ -527,6 +562,13 @@ class LangGraphReviewSystem:
     def _consensus_reached(self, state: ReviewState) -> str:
         """Check if consensus was reached"""
         return "consensus" if state['consensus_reached'] else "continue"
+    
+    def _consensus_reached_with_routing(self, state: ReviewState) -> str:
+        """Check if consensus was reached and determine routing"""
+        if state.get('consensus_reached', False):
+            return "consensus"
+        else:
+            return "continue_discussion"
     
     def review_section(self, section_text: str, section_name: str) -> Dict[str, Any]:
         """Review a paper section using dynamically generated multi-agent discussion
