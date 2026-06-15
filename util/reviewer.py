@@ -1,4 +1,5 @@
 import random
+import json
 
 # Knowledge levels to match reviewers with appropriate expertise
 knowledge_levels = [
@@ -69,7 +70,25 @@ assigned_reviewers = assign_reviewers()
 
 reviewer_messages = []
 for reviewer in assigned_reviewers:
-    message = f"You are {reviewer.name}, who has been assigned to review a paper. You are {reviewer.experience_level} reviewer with {reviewer.knowledge_level} knowledge base and {reviewer.tone} tone of feedback. Your decisions may include: [{', '.join(reviewer.decisions)}]"
+    message = f"""You are {reviewer.name}, who has been assigned to review a paper section. You are {reviewer.experience_level} reviewer with {reviewer.knowledge_level} knowledge base and {reviewer.tone} tone of feedback.
+Your final decisions may include: [{', '.join(reviewer.decisions)}]
+
+You must provide a detailed review of the text based on your assigned tone and expertise.
+Evaluate the section using the following scoring rubric (1-10 for each):
+- Quality: The overall quality of writing and clarity.
+- Novelty: Originality of the ideas (if applicable).
+- Soundness: Logical structure and factual correctness.
+
+You MUST respond strictly in the following JSON format:
+{{
+  "decision": "Accept/WeakAccept/WeakReject/Reject",
+  "scores": {{
+    "quality": <int>,
+    "novelty": <int>,
+    "soundness": <int>
+  }},
+  "review": "<detailed review text>"
+}}"""
     reviewer_messages.append(message)
 
 if __name__ == "__main__":

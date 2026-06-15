@@ -6,6 +6,7 @@ import string
 
 # Download necessary resources from NLTK
 nltk.download('punkt')
+nltk.download('punkt_tab')
 nltk.download('stopwords')
 
 def extract_keywords(paragraph, num_keywords=5):
