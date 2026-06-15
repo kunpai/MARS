@@ -1,13 +1,18 @@
-import ollama
-from ollama import chat
-from ollama import ChatResponse
+import litellm
 import requests
 import re
+import json
 from bs4 import BeautifulSoup
+from util.rag import search_relevant_context
 
-def isModelLoaded(model):
-    loaded_models = [model.model for model in ollama.list().models]
-    return model in loaded_models or f"{model}:latest" in loaded_models
+# We'll expect base_models to be passed in or accessible, but for this file's functions
+# we can just use litellm.completion with the appropriate system prompt if we have it,
+# or for simplicity, let's keep a global dict of system prompts that we can update.
+system_prompts = {}
+
+def set_system_prompts(prompts):
+    global system_prompts
+    system_prompts = prompts
 
 def consultWiki(question):
     print(f"Searching Wikipedia for: {question}")
@@ -21,85 +26,73 @@ def consultWiki(question):
         "srlimit": 1,
     }
 
-    response = requests.get(search_url, params=search_params)
-    if response.status_code == 200:
-        data = response.json()
-        search_results = data.get("query", {}).get("search", [])
+    try:
+        response = requests.get(search_url, params=search_params)
+        if response.status_code == 200:
+            data = response.json()
+            search_results = data.get("query", {}).get("search", [])
 
-        if search_results:
-            top_result = search_results[0]["title"]
-            page_url = f"https://en.wikipedia.org/wiki/{top_result.replace(' ', '_')}"
-            print(f"Fetching full content from: {page_url}")
+            if search_results:
+                top_result = search_results[0]["title"]
+                page_url = f"https://en.wikipedia.org/wiki/{top_result.replace(' ', '_')}"
+                print(f"Fetching full content from: {page_url}")
 
-            # Fetch the full page HTML
-            html_url = f"https://en.wikipedia.org/api/rest_v1/page/html/{top_result.replace(' ', '_')}"
-            html_response = requests.get(html_url)
+                html_url = f"https://en.wikipedia.org/api/rest_v1/page/html/{top_result.replace(' ', '_')}"
+                html_response = requests.get(html_url)
 
-            if html_response.status_code == 200:
-                soup = BeautifulSoup(html_response.text, "html.parser")
+                if html_response.status_code == 200:
+                    soup = BeautifulSoup(html_response.text, "html.parser")
+                    paragraphs = [p.get_text() for p in soup.find_all("p") if p.get_text()]
+                    full_text = " ".join(paragraphs)
 
-                # Extract all paragraphs from the page
-                paragraphs = [p.get_text() for p in soup.find_all("p") if p.get_text()]
-                full_text = " ".join(paragraphs)
+                    # Instead of basic extractive, let's use RAG to find the most relevant chunk
+                    summary = search_relevant_context(question, full_text, top_k=1)
 
-                # Summarize (basic extractive approach)
-                summary = " ".join(full_text.split(". ")[:5])  # First 5 sentences
-
-                return f"**{top_result}**\n{summary}...\n[Read more]({page_url})"
+                    return f"**{top_result}**\n{summary}\n[Read more]({page_url})"
+    except Exception as e:
+        print(f"Wikipedia search error: {e}")
     
     return "No results found on Wikipedia. Try using simpler keywords."
     
-def consultAgent(agent, question):
-    # print("Consulting agent", agent, "with question", question)
-    if not isModelLoaded(agent):
-        print(f"Model {agent} not found")
-        return
-    response: ChatResponse = chat(model=agent, messages=[
-        {
-            'role': 'user',
-            'content': question,
-        },
-    ])
-    return response.message.content
+def consultAgent(agent_role, question, model="ollama/llama3.2"):
+    system_prompt = system_prompts.get(agent_role, "")
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": question})
 
-def consultDeskReviewer(abstract):
-    desk_review = consultAgent('deskreviewer', abstract)
+    try:
+        response = litellm.completion(model=model, messages=messages)
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"Error consulting agent {agent_role}: {e}")
+        return f"Error: {e}"
+
+def consultDeskReviewer(abstract, model="ollama/llama3.2"):
+    desk_review = consultAgent('deskreviewer', abstract, model=model)
     print(desk_review)
     return 'accept' in desk_review.lower(), desk_review
 
-def consultReviewer1(abstract):
-    review = consultAgent('reviewer1', abstract)
-    print(review)
-    return review.split(' ')[0]
+def consultQuestioner(text, model="ollama/llama3.2"):
+    return consultAgent('questioner', text, model=model)
 
-def consultReviewer2(abstract):
-    review = consultAgent('reviewer2', abstract)
-    print(review)
-    return review.split(' ')[0]
+def consultGrammar(text, model="ollama/llama3.2"):
+    return consultAgent('grammar', text, model=model)
 
-def consultReviewer3(abstract):
-    review = consultAgent('reviewer3', abstract)
-    print(review)
-    return review.split(' ')[0]
+def consultTest(text, model="ollama/llama3.2"):
+    return consultAgent('test', text, model=model)
 
-def consultPaperSpecificModels(model, question):
-    return consultAgent(model, question)
+def consultNovelty(text, full_paper_text="", model="ollama/llama3.2"):
+    if full_paper_text:
+        # Use RAG to get relevant context from the paper for novelty
+        context = search_relevant_context(text, full_paper_text, top_k=2)
+        query = f"Context: {context}\n\nSection to evaluate: {text}"
+    else:
+        query = text
+    return consultAgent('novelty', query, model=model)
 
-def consultQuestioner(text):
-    return consultAgent('questioner', text)
-
-def consultGrammar(text):
-    return consultAgent('grammar', text)
-
-def consultTest(text):
-    return consultAgent('test', text)
-
-def consultNovelty(text):
-    return consultAgent('novelty', text)
-
-def consultFactChecker(text):
+def consultFactChecker(text, full_paper_text="", model="ollama/llama3.2"):
     tool_config = {
-        "name": "consultWiki",
         "type": "function",
         "function": {
             "name": "consultWiki",
@@ -117,53 +110,70 @@ def consultFactChecker(text):
         }
     }
     
-    retries = 3  # Set a max retry limit
-    query = text
+    system_prompt = system_prompts.get('factchecker', "You are a fact checker.")
 
-    response = chat(model='factchecker', messages=[{'role': 'user', 'content': "Do you need more facts? Only say yes or no. \n " + query}])
-    if 'yes' in response.message.content.lower():
+    # Check if more facts are needed
+    try:
+        need_facts_response = litellm.completion(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": "Do you need more facts to evaluate this? Only say yes or no.\n" + text}
+            ]
+        )
         
-        for attempt in range(retries):
-            response = chat(model='factchecker', messages=[{'role': 'user', 'content': query}], tools=[tool_config])
-            
-            print("Attempt number", attempt + 1)
+        if 'yes' in need_facts_response.choices[0].message.content.lower():
+            retries = 3
+            query = text
+            for attempt in range(retries):
+                print("Attempt number", attempt + 1)
 
-            if response.message.tool_calls:
-                for tool in response.message.tool_calls:
-                    if function_to_call := available_functions.get(tool.function.name):
-                        try:
-                            print("Asking " + tool.function.name + ": " + tool.function.arguments['question'])
-                        except:
-                            pass
-                        output = function_to_call(**tool.function.arguments)
-                        
-                        if output and output != "No results found on Wikipedia. Try using simpler keywords.":
-                            # new_query = "Question: \n" + query + " " + "Answer: \n" + output
-                            # print("new_query", new_query)
-                            # consultFactChecker(new_query)
-                            return output
-                        
-                        print("Refining query...")
-                        query = " ".join(re.findall(r'\b[A-Za-z0-9-]+\b', text)[:10]) # more specific query
+                response = litellm.completion(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": query}
+                    ],
+                    tools=[tool_config]
+                )
 
-        print("Could not retrieve relevant information from Wikipedia after multiple attempts.")
+                message = response.choices[0].message
+                if message.tool_calls:
+                    for tool in message.tool_calls:
+                        if tool.function.name == 'consultWiki':
+                            try:
+                                args = json.loads(tool.function.arguments)
+                                print("Asking Wiki:", args['question'])
+                                output = consultWiki(args['question'])
+                                if output and output != "No results found on Wikipedia. Try using simpler keywords.":
+                                    return output
+                            except Exception as e:
+                                print(f"Tool execution error: {e}")
+
+                    print("Refining query...")
+                    query = " ".join(re.findall(r'\b[A-Za-z0-9-]+\b', text)[:10])
+
+            print("Could not retrieve relevant information from Wikipedia after multiple attempts.")
+            return None
+        else:
+            response = litellm.completion(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": "Do you accept the claims? Say 'Accept' if yes and 'Reject' if no.\n" + text}
+                ]
+            )
+            return response.choices[0].message.content
+    except Exception as e:
+        print(f"Fact checking error: {e}")
         return None
-    else:
-        response = chat(model='factchecker', messages=[{'role': 'user', 'content': "Do you accept the claims? Say 'Accept' if yes and 'Reject' if no. \n " + query}])
-        return response.message.content
-
-available_models = [model.model for model in ollama.list().models]
 
 available_functions = {
     'consultWiki': consultWiki,
     'consultDeskReviewer': consultDeskReviewer,
-    'consultReviewer1': consultReviewer1,
-    'consultReviewer2': consultReviewer2,
-    'consultReviewer3': consultReviewer3,
     'consultQuestioner': consultQuestioner,
     'consultGrammar': consultGrammar,
     'consultTest': consultTest,
     'consultNovelty': consultNovelty,
     'consultFactChecker': consultFactChecker,
 }
-

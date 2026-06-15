@@ -40,7 +40,6 @@ nest-asyncio==1.6.0
 networkx==3.4.2
 nltk==3.9.1
 numpy==2.2.3
-ollama==0.4.7
 packaging==24.2
 pandas==2.2.3
 parso==0.8.4
@@ -77,9 +76,10 @@ torch==2.6.0
 tornado==6.4.2
 tqdm==4.67.1
 traitlets==5.14.3
-transformers==4.48.3
 typing_extensions==4.12.2
 tzdata==2025.1
 urllib3==2.3.0
-vaderSentiment==3.3.2
 wcwidth==0.2.13
+litellm
+scikit-learn
+numpy

@@ -1,17 +1,12 @@
 import os
 import json
-import re
 import time
 import argparse
-import requests
-import ollama
-from bs4 import BeautifulSoup
-from ollama import chat, ChatResponse
-from transformers import pipeline
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+import litellm
+
 from util.review_collab import (
-    parse_pdf_to_text, clean_text, extract_section,
-    split_text_into_sections, reviewer_agent, summarizer
+    parse_pdf_to_text, clean_text, split_text_into_sections,
+    board_room_review, summarizer
 )
 from util.build_models import generate_base_models, generate_paper_models
 from util.multiagent import (
@@ -20,16 +15,16 @@ from util.multiagent import (
     consultFactChecker as fact_checker,
     consultQuestioner as consult_question,
     consultTest as consult_test,
-    consultDeskReviewer as consult_desk_reviewer
+    consultDeskReviewer as consult_desk_reviewer,
+    set_system_prompts
 )
 from util.reviewer import assigned_reviewers
-from util.build_models import isModelLoaded
+from util.rag import search_relevant_context
 
 # Constants
-MODELS = ["mistral", "llama3.2", "qwen2.5", "deepseek-r1"]
+MODELS = ["ollama/mistral", "ollama/llama3.2", "ollama/qwen2.5"]
 CHECKPOINT_FILE = "feedback_collab.json"
 ANSWER_FILE = "feedback_collab_with_answers.json"
-MODEL_LIST_FILE = "paper_specific_models.txt"
 
 # Argument Parser
 parser = argparse.ArgumentParser(description="MultiAgent Paper Review with Optional Q&A")
@@ -57,7 +52,8 @@ print("\nAvailable Sections in the Paper:")
 for section in sections:
     print(f"- {section[0]}")
 
-# Load checkpoint if available
+full_paper_text = " ".join([s[1] for s in sections])
+
 if os.path.exists(CHECKPOINT_FILE):
     with open(CHECKPOINT_FILE, "r", encoding="utf-8") as f:
         checkpoint_data = json.load(f)
@@ -68,7 +64,6 @@ else:
     all_section_reviews = {}
     processed_sections = set()
 
-# Determine sections to process
 if args.section_name:
     if args.section_name in processed_sections:
         print(f"\nSection '{args.section_name}' is already processed. Exiting.")
@@ -78,10 +73,8 @@ else:
     sections_to_process = [s[0] for s in sections if s[0] not in processed_sections]
 
 if not sections_to_process:
-    print("\nNo new sections to process. Exiting.")
-    exit(0)
+    print("\nNo new sections to process.")
 
-# Checkpointing function
 def checkpoint_progress():
     feedback = {
         "Available Sections": [s[0] for s in sections],
@@ -91,69 +84,55 @@ def checkpoint_progress():
         json.dump(feedback, f, indent=4, ensure_ascii=False)
     print(f"\nCheckpoint saved to {CHECKPOINT_FILE}.")
 
-# Generate paper-specific models
-paper_specific_models = generate_paper_models(sections)
+if sections_to_process:
+    # Setup global prompts for the current run
+    base_prompts = generate_base_models(args.url, full_paper_text)
+    set_system_prompts(base_prompts)
 
-start_time = time.time()
-for section_name in sections_to_process:
-    print(f"\n\nProcessing section: {section_name}")
-    
-    section_text = extract_section(args.pdf_path, section_name) if args.pdf_path.endswith(".pdf") else next(s[1] for s in sections if s[0] == section_name)
-    
-    print("\n🔍 **Extracted Section:**")
-    print(section_text[:1000])
+    start_time = time.time()
+    for section_name in sections_to_process:
+        print(f"\n\nProcessing section: {section_name}")
 
-    similar_paper_data = generate_base_models(args.url, section_text)
-   
-    print(f"\n📢 **Reviewers Begin Discussion for {section_name}:**\n")
-    review_outputs = {model: reviewer_agent(assigned_reviewers[0], section_text, model) for model in MODELS}
+        section_text = next((s[1] for s in sections if s[0] == section_name), "")
+        if not section_text:
+            continue
 
-    def fancy_aggregate_reviews(review_list):
-        analyzer = SentimentIntensityAnalyzer()
-        sentiments = [analyzer.polarity_scores(r) for r in review_list]
-        weights = [abs(s['compound']) for s in sentiments]
-        total = sum(weights) + 1e-6
-        normalized_weights = [w / total for w in weights]
+        print("\n🔍 **Extracted Section:**")
+        print(section_text[:1000])
 
-        weighted_text = " ".join([r * max(1, int(w * 10)) for r, w in zip(review_list, normalized_weights)])
+        print(f"\n📢 **Reviewers Begin Discussion in Board Room for {section_name}:**\n")
 
-        summarizer_model = pipeline("summarization", model="facebook/bart-large-cnn")
-        summary = summarizer_model(weighted_text, max_length=150, min_length=40, do_sample=False)
-        return summary[0]['summary_text']
+        # Use first 3 reviewers for board room
+        reviewers = assigned_reviewers[:3]
+        initial_reviews, final_summary = board_room_review(reviewers, section_text, MODELS)
 
-    aggregated_review = fancy_aggregate_reviews(list(review_outputs.values()))
-    final_summary = summarizer(section_text, aggregated_review)
+        if "DeskReviewer" not in all_section_reviews and sections:
+            desk_review = consult_desk_reviewer(sections[0][1], model=MODELS[0])
+            all_section_reviews["DeskReviewer"] = {"Review": desk_review[1], "Accept": desk_review[0]}
 
-    if "DeskReviewer" not in all_section_reviews:
-        desk_review = consult_desk_reviewer(sections[0][1])
-        all_section_reviews["DeskReviewer"] = {"Review": desk_review[1], "Accept": desk_review[0]}
+        all_section_reviews[section_name] = {
+            "Test": consult_test(section_text, model=MODELS[0]),
+            "Reviewers": initial_reviews,
+            "Grammar Check": consult_grammar(section_text, model=MODELS[0]),
+            "Novelty Check": consult_novelty(section_text, full_paper_text=full_paper_text, model=MODELS[0]),
+            "Fact Check": fact_checker(section_text, full_paper_text=full_paper_text, model=MODELS[0]),
+            "Questioner": consult_question(section_text, model=MODELS[0]),
+            "Final Summary": final_summary
+        }
 
-    all_section_reviews[section_name] = {
-        "Test": consult_test(section_text),
-        "Reviewers": review_outputs,
-        "Grammar Check": consult_grammar(section_text),
-        "Novelty Check": consult_novelty(section_text),
-        "Fact Check": fact_checker(section_text),
-        "Questioner": consult_question(section_text),
-        "Final Summary": aggregated_review + "\n" + final_summary
-    }
+        checkpoint_progress()
 
-    checkpoint_progress()
-
-print("\nAll new sections processed. Final checkpoint saved.")
-print(f"\nTotal time taken: {time.time() - start_time:.2f} seconds")
-
-with open(MODEL_LIST_FILE, "w") as f:
-    for key in paper_specific_models:
-        f.write(f"{key}\n")
+    print("\nAll new sections processed. Final checkpoint saved.")
+    print(f"\nTotal time taken: {time.time() - start_time:.2f} seconds")
 
 # ---- Stage 2: Answering Questions (Optional) ----
 
 if args.answer_questions:
-    print("\nStarting Question-Answering Stage...")
+    print("\nStarting Question-Answering Stage using RAG...")
 
-    with open(MODEL_LIST_FILE, "r") as f:
-        paper_specific_models = [line.strip() for line in f if line.strip()]
+    if not os.path.exists(CHECKPOINT_FILE):
+        print("Checkpoint file not found. Cannot answer questions.")
+        exit(1)
 
     with open(CHECKPOINT_FILE, "r") as f:
         feedback = json.load(f)
@@ -163,26 +142,35 @@ if args.answer_questions:
 
     start_time = time.time()
     for section_name, section_data in feedback["Section Reviews"].items():
+        if section_name == "DeskReviewer":
+            continue
+
         if section_name in feedback["Answers"]:
             print(f"\nSkipping already processed section: {section_name}")
             continue
 
-        print(f"\nProcessing section: {section_name}")
-        questions = section_data.get("Questioner", "").split("?")
+        print(f"\nProcessing section questions: {section_name}")
+        questions_raw = section_data.get("Questioner", "")
+        if not questions_raw:
+            continue
+
+        questions = [q.strip() + "?" for q in questions_raw.split("?") if q.strip()]
         feedback["Answers"][section_name] = {}
 
         for question in questions:
-            question = question.strip() + "?"
-            if question == "?":
-                continue
-
             print(f"Processing question: {question}")
             feedback["Answers"][section_name][question] = {}
 
-            for model in paper_specific_models:
-                if section_name == model:
-                    continue
-                answer = chat(model=model, messages=[{"role": "user", "content": question}]).message.content.strip()
+            # Using RAG to get the most relevant context from the section (or full paper)
+            context = search_relevant_context(question, section_text if section_text else full_paper_text, top_k=2)
+            prompt = f"Use the following context to answer the question.\n\nContext: {context}\n\nQuestion: {question}"
+
+            for model in MODELS:
+                try:
+                    response = litellm.completion(model=model, messages=[{"role": "user", "content": prompt}])
+                    answer = response.choices[0].message.content.strip()
+                except Exception as e:
+                    answer = f"Error generating answer: {e}"
                 feedback["Answers"][section_name][question][model] = answer
 
         with open(ANSWER_FILE, "w") as f:

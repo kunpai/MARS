@@ -1,8 +1,9 @@
-import ollama
 import argparse
 from PyPDF2 import PdfReader
 import re
-from util.reviewer import assigned_reviewers  
+import json
+import litellm
+from util.reviewer import assigned_reviewers, reviewer_messages
 
 def parse_pdf_to_text(pdf_path):
     """Extract text from a PDF file."""
@@ -65,18 +66,6 @@ def extract_section(pdf_path, section_name):
 
     return f"Section '{section_name}' not found. Try a different section."
 
-reviewer_messages = []
-for reviewer in assigned_reviewers:
-    message = f"""
-    You are {reviewer.name}, assigned to review this paper. 
-    You are {reviewer.experience_level} reviewer with {reviewer.knowledge_level} expertise.
-    Your feedback tone is {reviewer.tone}.
-    You have no conflict of interest.
-    Your decisions may include: [Accept, Reject].
-    At the end of your review, provide a final decision based on your critique.
-    """
-    reviewer_messages.append(message)
-
 def reviewer_agent(reviewer, section_text, model, previous_feedback=None):
     """LLM agent that reviews a section based on assigned reviewer attributes and provides a decision."""
     prompt = f"""
@@ -86,31 +75,71 @@ def reviewer_agent(reviewer, section_text, model, previous_feedback=None):
     "{section_text}"
     
     {f"Previous discussion so far: {previous_feedback}" if previous_feedback else ""}
-    
-    Respond in a conversational manner, directly addressing previous comments if any.
-    If you agree with a previous reviewer, elaborate on why.
-    If you disagree, provide justification and alternative suggestions.
-    
-    🔹 **At the end of your review, explicitly state your final decision (Accept, Reject).**
     """
-    response = ollama.chat(model=model, messages=[{"role": "user", "content": prompt}])
-    return response['message']['content']
+    try:
+        response = litellm.completion(model=model, messages=[{"role": "user", "content": prompt}], response_format={ "type": "json_object" })
+        return response.choices[0].message.content
+    except Exception as e:
+        return json.dumps({
+            "decision": "Error",
+            "scores": {"quality": 0, "novelty": 0, "soundness": 0},
+            "review": f"Error during review: {e}"
+        })
 
-def summarizer(section_text, reviews):
-    """Summarizes the discussion into a structured summary with a final decision."""
-    prompt = f"""Summarize the discussion among three reviewers about the following research paper section.
+def board_room_review(reviewers, section_text, models):
+    """
+    Simulates a board room where multiple reviewers independently review a section,
+    then their reviews are shared to a meta reviewer to form a consensus.
+    """
+    initial_reviews = {}
+    for i, reviewer in enumerate(reviewers):
+        model = models[i % len(models)]
+        initial_reviews[reviewer.name] = reviewer_agent(reviewer, section_text, model)
+
+    combined_reviews = ""
+    for name, review_json in initial_reviews.items():
+        try:
+            r = json.loads(review_json)
+            combined_reviews += f"Reviewer {name}: Decision={r.get('decision')}, Scores={r.get('scores')}, Review={r.get('review')}\n"
+        except json.JSONDecodeError:
+            combined_reviews += f"Reviewer {name} raw output: {review_json}\n"
+
+    # Meta reviewer phase
+    summary_prompt = f"""Summarize the board room discussion among reviewers about the following research paper section.
     
     Section: "{section_text}"
 
     Reviews:
-    {reviews}
+    {combined_reviews}
 
     Format the summary as if recording minutes of a meeting. Highlight agreements, disagreements, and key takeaways.
     
-    🔹 **At the end, determine the final decision based on the majority vote (Accept, Reject).**
+    🔹 **At the end, determine the final decision based on the majority vote (Accept, Reject, WeakAccept, WeakReject).**
     """
-    response = ollama.chat(model="mistral", messages=[{"role": "user", "content": prompt}])
-    return response['message']['content']
+    try:
+        response = litellm.completion(model=models[0], messages=[{"role": "user", "content": summary_prompt}])
+        summary = response.choices[0].message.content
+    except Exception as e:
+        summary = f"Error generating summary: {e}"
+
+    return initial_reviews, summary
+
+def summarizer(section_text, aggregated_review):
+    # This keeps compatibility with older code if needed
+    prompt = f"""Summarize the discussion about the following research paper section.
+
+    Section: "{section_text}"
+
+    Aggregated Review:
+    {aggregated_review}
+
+    Format the summary as if recording minutes of a meeting. Highlight agreements, disagreements, and key takeaways.
+    """
+    try:
+        response = litellm.completion(model="ollama/llama3.2", messages=[{"role": "user", "content": prompt}])
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Error: {e}"
 
 def main():
     parser = argparse.ArgumentParser(description="Extract and discuss a specific section of a research paper.")
@@ -119,26 +148,23 @@ def main():
 
     args = parser.parse_args()
     section_text = extract_section(args.pdf_path, args.section_name)
-    if "no" in section_text:
+    if "not found" in section_text.lower():
         print(section_text)
         return
 
     print("\n🔍 **Extracted Section:**")
     print(section_text[:1000]) 
 
-    print("\n📢 **Reviewers Begin Discussion:**\n")
+    print("\n📢 **Reviewers Begin Discussion in the Board Room:**\n")
     
-    review1_output = reviewer_agent(assigned_reviewers[0], section_text)
-    print(f"🗣️ **{assigned_reviewers[0].name} ({assigned_reviewers[0].experience_level} - {assigned_reviewers[0].knowledge_level})**: {review1_output}\n")
+    # Example using first 3 reviewers and dummy models for test
+    reviewers = assigned_reviewers[:3]
+    models = ["ollama/llama3.2"] * 3
+    initial_reviews, final_summary = board_room_review(reviewers, section_text, models)
     
-    review2_output = reviewer_agent(assigned_reviewers[1], section_text, review1_output)
-    print(f"🗣️ **{assigned_reviewers[1].name} ({assigned_reviewers[1].experience_level} - {assigned_reviewers[1].knowledge_level})**: {review2_output}\n")
-    
-    review3_output = reviewer_agent(assigned_reviewers[2], section_text, f"{review1_output}\n{review2_output}")
-    print(f"🗣️ **{assigned_reviewers[2].name} ({assigned_reviewers[2].experience_level} - {assigned_reviewers[2].knowledge_level})**: {review3_output}\n")
+    for name, r in initial_reviews.items():
+        print(f"🗣️ **{name}**: {r}\n")
 
-    final_summary = summarizer(section_text, f"{review1_output}\n{review2_output}\n{review3_output}")
-    
     print("\n**Final Summary and Decision:**")
     print(final_summary)
 
