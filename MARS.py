@@ -177,7 +177,12 @@ if args.answer_questions:
         if not questions_raw:
             continue
 
-        questions = [q.strip() + "?" for q in questions_raw.split("?") if q.strip()]
+        if isinstance(questions_raw, dict) and "questions" in questions_raw:
+            questions = questions_raw["questions"]
+        elif isinstance(questions_raw, list):
+            questions = questions_raw
+        else:
+            questions = [q.strip() + "?" for q in questions_raw.split("?") if q.strip()]
         feedback["Answers"][section_name] = {}
 
         for question in questions:

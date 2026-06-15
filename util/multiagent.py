@@ -4,6 +4,27 @@ import re
 import json
 from bs4 import BeautifulSoup
 from util.rag import search_relevant_context
+from pydantic import BaseModel, Field
+from typing import List
+
+class DeskReviewResponse(BaseModel):
+    accept: bool = Field(..., description="Whether the paper is relevant to the conference topics")
+    explanation: str = Field(..., description="Explanation for the desk review decision")
+
+class QuestionerResponse(BaseModel):
+    questions: List[str] = Field(..., description="List of open-ended, non-leading questions about the paper section")
+
+class GrammarResponse(BaseModel):
+    accept: bool = Field(..., description="Whether the grammar is correct")
+    corrections: str = Field(..., description="Specific grammar corrections or notes")
+
+class NoveltyResponse(BaseModel):
+    novel: bool = Field(..., description="Whether the paper is novel")
+    reasoning: str = Field(..., description="Detailed explanation of novelty evaluation")
+
+class FactCheckResponse(BaseModel):
+    accept: bool = Field(..., description="Whether the facts are correct and verified")
+    corrections: str = Field(..., description="Specific corrections if inaccuracies were found, or verification notes")
 
 # We'll expect base_models to be passed in or accessible, but for this file's functions
 # we can just use litellm.completion with the appropriate system prompt if we have it,
@@ -54,7 +75,7 @@ def consultWiki(question):
     
     return "No results found on Wikipedia. Try using simpler keywords."
     
-def consultAgent(agent_role, question, model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"):
+def consultAgent(agent_role, question, model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", response_format=None):
     system_prompt = system_prompts.get(agent_role, "")
     messages = []
     if system_prompt:
@@ -62,22 +83,37 @@ def consultAgent(agent_role, question, model="nvidia_nim/nvidia/nemotron-3-nano-
     messages.append({"role": "user", "content": question})
 
     try:
-        response = litellm.completion(model=model, messages=messages)
+        kwargs = {}
+        if response_format:
+            kwargs["response_format"] = response_format
+        response = litellm.completion(model=model, messages=messages, **kwargs)
         return response.choices[0].message.content
     except Exception as e:
         print(f"Error consulting agent {agent_role}: {e}")
         return f"Error: {e}"
 
 def consultDeskReviewer(abstract, model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"):
-    desk_review = consultAgent('deskreviewer', abstract, model=model)
-    print(desk_review)
-    return 'accept' in desk_review.lower(), desk_review
+    desk_review_raw = consultAgent('deskreviewer', abstract, model=model, response_format=DeskReviewResponse)
+    print(desk_review_raw)
+    try:
+        data = json.loads(desk_review_raw)
+        return data.get("accept", False), data
+    except Exception:
+        return 'accept' in desk_review_raw.lower(), desk_review_raw
 
 def consultQuestioner(text, model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"):
-    return consultAgent('questioner', text, model=model)
+    raw = consultAgent('questioner', text, model=model, response_format=QuestionerResponse)
+    try:
+        return json.loads(raw)
+    except Exception:
+        return raw
 
 def consultGrammar(text, model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"):
-    return consultAgent('grammar', text, model=model)
+    raw = consultAgent('grammar', text, model=model, response_format=GrammarResponse)
+    try:
+        return json.loads(raw)
+    except Exception:
+        return raw
 
 def consultTest(text, model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"):
     return consultAgent('test', text, model=model)
@@ -89,7 +125,11 @@ def consultNovelty(text, full_paper_text="", model="nvidia_nim/nvidia/nemotron-3
         query = f"Context: {context}\n\nSection to evaluate: {text}"
     else:
         query = text
-    return consultAgent('novelty', query, model=model)
+    raw = consultAgent('novelty', query, model=model, response_format=NoveltyResponse)
+    try:
+        return json.loads(raw)
+    except Exception:
+        return raw
 
 def consultFactChecker(text, full_paper_text="", model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"):
     tool_config = {
@@ -160,10 +200,15 @@ def consultFactChecker(text, full_paper_text="", model="nvidia_nim/nvidia/nemotr
                 model=model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": "Do you accept the claims? Say 'Accept' if yes and 'Reject' if no.\n" + text}
-                ]
+                    {"role": "user", "content": "Evaluate the claims in the text: " + text}
+                ],
+                response_format=FactCheckResponse
             )
-            return response.choices[0].message.content
+            raw = response.choices[0].message.content
+            try:
+                return json.loads(raw)
+            except Exception:
+                return raw
     except Exception as e:
         print(f"Fact checking error: {e}")
         return None
