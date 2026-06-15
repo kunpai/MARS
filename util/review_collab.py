@@ -112,15 +112,22 @@ def board_room_review(reviewers, section_text, models):
     initial_reviews = {}
     for i, reviewer in enumerate(reviewers):
         model = models[i % len(models)]
-        initial_reviews[reviewer.name] = reviewer_agent(reviewer, section_text, model)
+        review_raw = reviewer_agent(reviewer, section_text, model)
+        try:
+            initial_reviews[reviewer.name] = json.loads(review_raw)
+        except Exception:
+            initial_reviews[reviewer.name] = review_raw
 
     combined_reviews = ""
-    for name, review_json in initial_reviews.items():
-        try:
-            r = json.loads(review_json)
+    for name, r in initial_reviews.items():
+        if isinstance(r, dict):
             combined_reviews += f"Reviewer {name}: Decision={r.get('decision')}, Scores={r.get('scores')}, Review={r.get('review')}\n"
-        except json.JSONDecodeError:
-            combined_reviews += f"Reviewer {name} raw output: {review_json}\n"
+        else:
+            try:
+                parsed = json.loads(r)
+                combined_reviews += f"Reviewer {name}: Decision={parsed.get('decision')}, Scores={parsed.get('scores')}, Review={parsed.get('review')}\n"
+            except Exception:
+                combined_reviews += f"Reviewer {name} raw output: {r}\n"
 
     # Meta reviewer phase
     summary_prompt = f"""Summarize the board room discussion among reviewers about the following research paper section.
