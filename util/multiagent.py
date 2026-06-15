@@ -54,7 +54,7 @@ def consultWiki(question):
     
     return "No results found on Wikipedia. Try using simpler keywords."
     
-def consultAgent(agent_role, question, model="ollama/llama3.2"):
+def consultAgent(agent_role, question, model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"):
     system_prompt = system_prompts.get(agent_role, "")
     messages = []
     if system_prompt:
@@ -68,21 +68,21 @@ def consultAgent(agent_role, question, model="ollama/llama3.2"):
         print(f"Error consulting agent {agent_role}: {e}")
         return f"Error: {e}"
 
-def consultDeskReviewer(abstract, model="ollama/llama3.2"):
+def consultDeskReviewer(abstract, model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"):
     desk_review = consultAgent('deskreviewer', abstract, model=model)
     print(desk_review)
     return 'accept' in desk_review.lower(), desk_review
 
-def consultQuestioner(text, model="ollama/llama3.2"):
+def consultQuestioner(text, model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"):
     return consultAgent('questioner', text, model=model)
 
-def consultGrammar(text, model="ollama/llama3.2"):
+def consultGrammar(text, model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"):
     return consultAgent('grammar', text, model=model)
 
-def consultTest(text, model="ollama/llama3.2"):
+def consultTest(text, model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"):
     return consultAgent('test', text, model=model)
 
-def consultNovelty(text, full_paper_text="", model="ollama/llama3.2"):
+def consultNovelty(text, full_paper_text="", model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"):
     if full_paper_text:
         # Use RAG to get relevant context from the paper for novelty
         context = search_relevant_context(text, full_paper_text, top_k=2)
@@ -91,7 +91,7 @@ def consultNovelty(text, full_paper_text="", model="ollama/llama3.2"):
         query = text
     return consultAgent('novelty', query, model=model)
 
-def consultFactChecker(text, full_paper_text="", model="ollama/llama3.2"):
+def consultFactChecker(text, full_paper_text="", model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"):
     tool_config = {
         "type": "function",
         "function": {

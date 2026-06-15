@@ -4,6 +4,9 @@ import time
 import argparse
 import litellm
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from util.review_collab import (
     parse_pdf_to_text, clean_text, split_text_into_sections,
     board_room_review, summarizer
@@ -22,7 +25,7 @@ from util.reviewer import assigned_reviewers
 from util.rag import search_relevant_context
 
 # Constants
-MODELS = ["ollama/mistral", "ollama/llama3.2", "ollama/qwen2.5"]
+MODELS = ["nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"] * 3
 CHECKPOINT_FILE = "feedback_collab.json"
 ANSWER_FILE = "feedback_collab_with_answers.json"
 
@@ -36,8 +39,28 @@ args = parser.parse_args()
 
 # ---- Stage 1: Review Paper Sections ----
 
-# Parse and clean the PDF text
-if args.pdf_path.endswith(".pdf"):
+# Parse and clean the PDF text or load from JSON/Directory
+if os.path.isdir(args.pdf_path):
+    sections = []
+    known_sections = [
+        "abstract.tex", "intro.tex", "bg.tex", "design.tex", "impl.tex", 
+        "eval.tex", "threats.tex", "discussion.tex", "relwork.tex", "conc.tex", "ack.tex"
+    ]
+    for fname in known_sections:
+        fpath = os.path.join(args.pdf_path, fname)
+        if os.path.exists(fpath):
+            with open(fpath, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                sections.append((fname.replace(".tex", "").capitalize(), content))
+    ignored_files = {"main.tex", "cmds.tex", "IEEE-conference-template-062824.tex", "backup.tex"}
+    for fname in sorted(os.listdir(args.pdf_path)):
+        if fname.endswith(".tex") and fname not in known_sections and fname not in ignored_files:
+            fpath = os.path.join(args.pdf_path, fname)
+            if os.path.isfile(fpath):
+                with open(fpath, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    sections.append((fname.replace(".tex", "").capitalize(), content))
+elif args.pdf_path.endswith(".pdf"):
     pdf_text = parse_pdf_to_text(args.pdf_path)
     cleaned_text = clean_text(pdf_text)
     sections = split_text_into_sections(cleaned_text)

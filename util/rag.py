@@ -9,11 +9,11 @@ def chunk_text(text, chunk_size=500, overlap=50):
         chunks.append(chunk)
     return chunks
 
-def get_embeddings(texts, model="ollama/llama3.2"):
+def get_embeddings(texts, model="nvidia_nim/nvidia/nv-embed-v1"):
     embeddings = []
     for text in texts:
         try:
-            response = litellm.embedding(model=model, input=text)
+            response = litellm.embedding(model=model, input=text, encoding_format="float")
             embeddings.append(response.data[0]['embedding'])
         except Exception as e:
             print(f"Error getting embedding: {e}")
@@ -25,7 +25,7 @@ def cosine_similarity(vec1, vec2):
     vec2 = np.array(vec2)
     return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2) + 1e-10)
 
-def search_relevant_context(query, text, top_k=3, model="ollama/llama3.2"):
+def search_relevant_context(query, text, top_k=3, model="nvidia_nim/nvidia/nv-embed-v1"):
     chunks = chunk_text(text)
     if not chunks:
         return ""

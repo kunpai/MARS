@@ -77,8 +77,11 @@ def reviewer_agent(reviewer, section_text, model, previous_feedback=None):
     {f"Previous discussion so far: {previous_feedback}" if previous_feedback else ""}
     """
     try:
-        response = litellm.completion(model=model, messages=[{"role": "user", "content": prompt}], response_format={ "type": "json_object" })
-        return response.choices[0].message.content
+        response = litellm.completion(model=model, messages=[{"role": "user", "content": prompt}])
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("Empty response received from the model")
+        return content
     except Exception as e:
         return json.dumps({
             "decision": "Error",
@@ -136,7 +139,7 @@ def summarizer(section_text, aggregated_review):
     Format the summary as if recording minutes of a meeting. Highlight agreements, disagreements, and key takeaways.
     """
     try:
-        response = litellm.completion(model="ollama/llama3.2", messages=[{"role": "user", "content": prompt}])
+        response = litellm.completion(model="nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", messages=[{"role": "user", "content": prompt}])
         return response.choices[0].message.content
     except Exception as e:
         return f"Error: {e}"
@@ -159,7 +162,7 @@ def main():
     
     # Example using first 3 reviewers and dummy models for test
     reviewers = assigned_reviewers[:3]
-    models = ["ollama/llama3.2"] * 3
+    models = ["nvidia_nim/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"] * 3
     initial_reviews, final_summary = board_room_review(reviewers, section_text, models)
     
     for name, r in initial_reviews.items():

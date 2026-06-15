@@ -10,3 +10,4 @@ feedback_*
 *.txt
 *.zip
 **/__pycache__/
+.env
