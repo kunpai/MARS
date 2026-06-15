@@ -3,7 +3,18 @@ from PyPDF2 import PdfReader
 import re
 import json
 import litellm
+from pydantic import BaseModel, Field
 from util.reviewer import assigned_reviewers, reviewer_messages
+
+class ReviewScores(BaseModel):
+    quality: int = Field(..., description="Quality score from 1 to 10")
+    novelty: int = Field(..., description="Novelty score from 1 to 10")
+    soundness: int = Field(..., description="Soundness score from 1 to 10")
+
+class ReviewResponse(BaseModel):
+    decision: str = Field(..., description="Final decision: Accept, Reject, WeakAccept, or WeakReject")
+    scores: ReviewScores
+    review: str = Field(..., description="Detailed feedback explaining the decision and scores")
 
 def parse_pdf_to_text(pdf_path):
     """Extract text from a PDF file."""
@@ -77,7 +88,11 @@ def reviewer_agent(reviewer, section_text, model, previous_feedback=None):
     {f"Previous discussion so far: {previous_feedback}" if previous_feedback else ""}
     """
     try:
-        response = litellm.completion(model=model, messages=[{"role": "user", "content": prompt}])
+        response = litellm.completion(
+            model=model, 
+            messages=[{"role": "user", "content": prompt}], 
+            response_format=ReviewResponse
+        )
         content = response.choices[0].message.content
         if not content:
             raise ValueError("Empty response received from the model")
