@@ -77,6 +77,20 @@ def extract_section(pdf_path, section_name):
 
     return f"Section '{section_name}' not found. Try a different section."
 
+def parse_json_markdown(text):
+    text = text.strip()
+    if text.startswith("```"):
+        nl = text.find("\n")
+        if nl != -1:
+            text = text[nl:].strip()
+        if text.endswith("```"):
+            text = text[:-3].strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1:
+        text = text[start:end+1]
+    return json.loads(text)
+
 def reviewer_agent(reviewer, section_text, model, previous_feedback=None):
     """LLM agent that reviews a section based on assigned reviewer attributes and provides a decision."""
     prompt = f"""
@@ -86,12 +100,23 @@ def reviewer_agent(reviewer, section_text, model, previous_feedback=None):
     "{section_text}"
     
     {f"Previous discussion so far: {previous_feedback}" if previous_feedback else ""}
+    
+    CRITICAL: You MUST respond ONLY with a JSON object matching this schema:
+    {{
+        "decision": "Accept/Reject/WeakAccept/WeakReject",
+        "scores": {{
+            "quality": integer (1-10),
+            "novelty": integer (1-10),
+            "soundness": integer (1-10)
+        }},
+        "review": "string detailed explanation"
+    }}
+    Do not include any conversational preambles or explanations outside the JSON.
     """
     try:
         response = litellm.completion(
             model=model, 
-            messages=[{"role": "user", "content": prompt}], 
-            response_format=ReviewResponse
+            messages=[{"role": "user", "content": prompt}]
         )
         content = response.choices[0].message.content
         if not content:
@@ -114,7 +139,7 @@ def board_room_review(reviewers, section_text, models):
         model = models[i % len(models)]
         review_raw = reviewer_agent(reviewer, section_text, model)
         try:
-            initial_reviews[reviewer.name] = json.loads(review_raw)
+            initial_reviews[reviewer.name] = parse_json_markdown(review_raw)
         except Exception:
             initial_reviews[reviewer.name] = review_raw
 
@@ -124,7 +149,7 @@ def board_room_review(reviewers, section_text, models):
             combined_reviews += f"Reviewer {name}: Decision={r.get('decision')}, Scores={r.get('scores')}, Review={r.get('review')}\n"
         else:
             try:
-                parsed = json.loads(r)
+                parsed = parse_json_markdown(r)
                 combined_reviews += f"Reviewer {name}: Decision={parsed.get('decision')}, Scores={parsed.get('scores')}, Review={parsed.get('review')}\n"
             except Exception:
                 combined_reviews += f"Reviewer {name} raw output: {r}\n"
