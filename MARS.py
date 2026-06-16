@@ -60,6 +60,15 @@ if os.path.isdir(args.pdf_path):
                 with open(fpath, "r", encoding="utf-8") as f:
                     content = f.read().strip()
                     sections.append((fname.replace(".tex", "").capitalize(), content))
+    bib_contents = []
+    for fname in sorted(os.listdir(args.pdf_path)):
+        if fname.endswith(".bib"):
+            fpath = os.path.join(args.pdf_path, fname)
+            if os.path.isfile(fpath):
+                with open(fpath, "r", encoding="utf-8") as f:
+                    bib_contents.append(f.read().strip())
+    if bib_contents:
+        sections.append(("Bibliography", "\n\n".join(bib_contents)))
 elif args.pdf_path.endswith(".pdf"):
     pdf_text = parse_pdf_to_text(args.pdf_path)
     cleaned_text = clean_text(pdf_text)
@@ -93,7 +102,7 @@ if args.section_name:
         exit(0)
     sections_to_process = [args.section_name]
 else:
-    sections_to_process = [s[0] for s in sections if s[0] not in processed_sections]
+    sections_to_process = [s[0] for s in sections if s[0] not in processed_sections and s[0] != "Bibliography"]
 
 if not sections_to_process:
     print("\nNo new sections to process.")
